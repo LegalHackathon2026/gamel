@@ -270,8 +270,8 @@ export default function AuthPage() {
           setError(''); setSuccess('');
         } else if (msg.includes('user already registered')) {
           setError('An account with this email already exists. Please sign in.');
-        } else if (msg.includes('rate limit') || msg.includes('too many requests')) {
-          setError('Too many attempts. Please wait a few minutes.');
+       // } else if (msg.includes('rate limit') || msg.includes('too many requests')) {
+       //   setError('Too many attempts. Please wait a few minutes.');
         } else if (msg.includes('network') || msg.includes('fetch')) {
           setError('Network error. Please check your connection.');
         } else {
