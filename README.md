@@ -24,45 +24,45 @@ Gamell is a comprehensive gamified AI-powered legal/Law learning platform design
 ## 📁 Project Structure
 
 ```
-gamell
-├── app
+gamell/
+├── app/
 │   ├── api/
 │   │   ├── ask/
 │   │   │   └── route.ts
-│   │   ├── ingest/
-│   │   │   └── route.js
-│   │   └── seed/
+│   │   ├── ingest/ (folder and file removed for now)
+│   │   │   └── route.js 
+│   │   └── seed/ (folder and file removed for now)
 │   │       └── route.js
-│   ├── auth
+│   ├── auth/
 │   │   └── page.tsx
-│   ├── chat
+│   ├── chat/
 │   │   └── page.tsx
-│   ├── community
+│   ├── community/
 │   │   └── page.tsx
-│   ├── dashboard
+│   ├── dashboard/
 │   │   └── page.tsx
-│   ├── learn
-│   │   ├── facts
+│   ├── learn/
+│   │   ├── facts/
 │   │   │   └── page.tsx
-│   │   ├── flashcards
+│   │   ├── flashcards/
 │   │   │   └── page.tsx
-│   │   ├── rpg
+│   │   ├── rpg/
 │   │   │   └── page.tsx
 │   │   └── page.tsx
-│   ├── profile
+│   ├── profile/
 │   │   └── page.tsx
 │   ├── error.tsx
 │   ├── globals.css
 │   ├── layout.tsx
 │   ├── not-found.tsx
 │   └── page.tsx
-├── components
+├── components/
 │   ├── BottomNav.tsx
 │   ├── NavWrapper.tsx
 │   ├── Sidebar.tsx
 │   ├── ThemeProvider.tsx
 │   └── ThemeToggle.tsx
-├── lib
+├── lib/
 │   ├── chunk.js
 │   ├── clean.js
 │   ├── embeddings.js
@@ -70,12 +70,12 @@ gamell
 │   ├── gamification.ts
 │   ├── supabaseClient.ts
 │   └── types.ts
-├── scripts
+├── scripts/
 │   ├── ingest-pdf.js
 │   ├── ingest-web.js
 │   ├── scraper.js
 │   └── seed-gamell-data.js
-├── supabase
+├── supabase/
 │   └── schema.sql
 ├── .env.example
 ├── .eslintrc.json
