@@ -64,9 +64,6 @@ export default function LandingPage() {
             fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15,
             color: 'var(--text-primary)', textDecoration: 'none', padding: '8px 18px',
           }}>Log in</Link>
-          <Link href="/auth" className="btn-primary" style={{ padding: '8px 20px', fontSize: 14 }}>
-            Get started free
-          </Link>
         </div>
       </header>
 
