@@ -1,15 +1,26 @@
 // app/layout.tsx
-import './globals.css';
-import type { Metadata } from 'next';
-import NavWrapper from '@/components/NavWrapper';
-import { ThemeProvider } from '@/components/ThemeProvider';
+import "./globals.css";
+import type { Metadata } from "next";
+import NavWrapper from "@/components/NavWrapper";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: 'Gamell - Gamified Law Learning',
-  description: 'The gamified way to learn Nigerian law. Earn XP, complete scenarios, and become legally literate.',
+  title: "Gamell - Gamified Law Learning",
+  description:
+    "The gamified way to learn Nigerian law. Earn XP, complete scenarios, and become legally literate.",
+
+  icons: {
+    icon: "/favicon.ico", // standard favicon
+    shortcut: "/favicon-16x16.png", // shortcut icon
+    apple: "/apple-touch-icon.png", // iOS home screen
+  },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
