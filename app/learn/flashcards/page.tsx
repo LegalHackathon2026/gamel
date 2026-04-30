@@ -164,8 +164,8 @@ export default function FlashcardsPage() {
       {isFinished && (
         <div style={{ marginTop: 32, background: '#F0FFF8', border: '1px solid var(--green)', borderRadius: 16, padding: 24, textAlign: 'center' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, color: 'var(--navy)', marginBottom: 8 }}>Deck complete!</h3>
-          <p style={{ color: 'var(--gray-600)', fontSize: 14 }}>You earned <strong>{xpEarned} XP</strong> this session.</p>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, color: '#0F1C3F', marginBottom: 8 }}>Deck complete!</h3>
+          <p style={{ color: '#0F1C3F', fontSize: 14 }}>You earned <strong>{xpEarned} XP</strong> this session.</p>
         </div>
       )}
     </div>
