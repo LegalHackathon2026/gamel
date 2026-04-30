@@ -24,6 +24,7 @@ Gamell is a comprehensive gamified AI-powered legal/Law learning platform design
 ## 📁 Project Structure
 
 ```
+gamell
 ├── app
 │   ├── api/
 │   │   ├── ask/
