@@ -1,0 +1,40 @@
+{
+  "name": "gamell",
+  "version": "1.0.0",
+  "description": "Gamified Nigerian legal learning platform",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "ingest:pdf": "node scripts/ingest-pdf.js",
+    "ingest:web": "node scripts/ingest-web.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.105.0",
+    "axios": "^1.15.2",
+    "cheerio": "^1.2.0",
+    "next": "15.3.9",
+    "openai": "^6.34.0",
+    "pdf-parse": "^2.4.5",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@tailwindcss/postcss": "^4.2.4",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.5.0",
+    "dotenv": "^16.4.0",
+    "eslint": "^10.2.1",
+    "eslint-config-next": "15.3.9",
+    "postcss": "^8.5.12",
+    "tailwindcss": "^4.2.4",
+    "typescript": "^5.8.3"
+  }
+}
