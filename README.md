@@ -25,9 +25,13 @@ Gamell is a comprehensive gamified AI-powered legal/Law learning platform design
 
 ```
 ├── app
-│   ├── api
-│   │   └── ask
-│   │       └── route.ts
+│   ├── api/
+│   │   ├── ask/
+│   │   │   └── route.ts
+│   │   ├── ingest/
+│   │   │   └── route.js
+│   │   └── seed/
+│   │       └── route.js
 │   ├── auth
 │   │   └── page.tsx
 │   ├── chat
@@ -58,9 +62,18 @@ Gamell is a comprehensive gamified AI-powered legal/Law learning platform design
 │   ├── ThemeProvider.tsx
 │   └── ThemeToggle.tsx
 ├── lib
+│   ├── chunk.js
+│   ├── clean.js
+│   ├── embeddings.js
+│   ├── websearch.js
 │   ├── gamification.ts
 │   ├── supabaseClient.ts
 │   └── types.ts
+├── scripts
+│   ├── ingest-pdf.js
+│   ├── ingest-web.js
+│   ├── scraper.js
+│   └── seed-gamell-data.js
 ├── supabase
 │   └── schema.sql
 ├── .env.example
