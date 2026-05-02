@@ -191,14 +191,14 @@ export default function CommunityPage() {
                   {avatar.emoji}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+                  <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: isMe ? '#0F1C3F' : 'var(--text-primary)' }}>
                     {user.display_name || 'Anonymous'} {isMe ? '(You)' : ''}
                   </p>
-                  <p style={{ fontSize: 12, color: 'var(--text-primary)' }}>Level {user.level} · 🔥 {user.streak} day streak</p>
+                  <p style={{ fontSize: 12, color: isMe ? '#0F1C3F' : 'var(--text-primary)' }}>Level {user.level} · 🔥 {user.streak} day streak</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>{user.xp.toLocaleString()}</p>
-                  <p style={{ fontSize: 11, color: 'var(--text-primary)' }}>XP</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, color: isMe ? '#0F1C3F' : 'var(--text-primary)' }}>{user.xp.toLocaleString()}</p>
+                  <p style={{ fontSize: 11, color: isMe ? '#0F1C3F' : 'var(--text-primary)' }}>XP</p>
                 </div>
               </div>
             );
