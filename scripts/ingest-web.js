@@ -22,11 +22,11 @@ import { storeChunks, logIngestion } from "../lib/supabase.js";
 const SEED_URLS = [
   {
     url: "https://www.lawpavilion.com/blog/nigerian-constitution/",
-    metadata: { topic: "Constitutional Law", court: null, doc_type: "statute" },
+    metadata: { topic: "Constitutional Law", court: null, doc_type: "statute", jurisdiction: "Nigeria" },
   },
   {
     url: "https://www.lawnigeria.com/judgements/",
-    metadata: { topic: "Case Law", doc_type: "case_law" },
+    metadata: { topic: "Case Law", doc_type: "case_law", jurisdiction: "Nigeria" },
   },
   // Add judiciary websites, law blogs, etc.
 ];
@@ -95,6 +95,7 @@ async function processURL(url, extraMetadata = {}) {
       year: extraMetadata.year || extractYear(cleanedText),
       doc_type: extraMetadata.doc_type || detectDocumentType(cleanedText),
       document_title: extraMetadata.document_title || new URL(url).pathname,
+      jurisdiction: extraMetadata.jurisdiction || "Nigeria",
       ...extraMetadata,
     };
 
