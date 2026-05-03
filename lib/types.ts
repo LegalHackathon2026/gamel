@@ -65,6 +65,13 @@ export interface Post {
   users?: { display_name: string | null; avatar_id: string };
 }
 
+export interface Like {
+  id: string;
+  post_id: string;
+  user_id: string;
+  created_at: string;
+}
+
 export interface LeaderboardEntry {
   id: string;
   display_name: string | null;

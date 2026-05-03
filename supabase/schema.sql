@@ -105,6 +105,14 @@ CREATE TABLE IF NOT EXISTS posts (
   created_at timestamptz DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS likes (
+  id         uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  post_id    uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(post_id, user_id)
+);
+
 -- ── Conversations (Chat/RAG) ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS conversations (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -222,11 +230,59 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION like_post(p_post_id uuid)
+RETURNS int
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id uuid;
+  v_post_owner_id uuid;
+  v_like_count int;
+BEGIN
+  v_user_id := auth.uid();
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  SELECT user_id
+  INTO v_post_owner_id
+  FROM posts
+  WHERE id = p_post_id;
+
+  IF v_post_owner_id IS NULL THEN
+    RAISE EXCEPTION 'Post not found';
+  END IF;
+
+  IF v_post_owner_id = v_user_id THEN
+    RAISE EXCEPTION 'You cannot like your own post';
+  END IF;
+
+  INSERT INTO likes (post_id, user_id)
+  VALUES (p_post_id, v_user_id)
+  ON CONFLICT (post_id, user_id) DO NOTHING;
+
+  SELECT COUNT(*)
+  INTO v_like_count
+  FROM likes
+  WHERE post_id = p_post_id;
+
+  UPDATE posts
+  SET likes = v_like_count
+  WHERE id = p_post_id;
+
+  RETURN v_like_count;
+END;
+$$;
+
 -- ── Row Level Security ────────────────────────────────────────
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies before recreating to avoid conflicts on re-run
@@ -240,6 +296,7 @@ DROP POLICY IF EXISTS "Users can insert own progress" ON user_progress;
 DROP POLICY IF EXISTS "Anyone can view posts" ON posts;
 DROP POLICY IF EXISTS "Users can create posts" ON posts;
 DROP POLICY IF EXISTS "Users can update own posts" ON posts;
+DROP POLICY IF EXISTS "Anyone can view likes" ON likes;
 DROP POLICY IF EXISTS "Anyone can read flashcards" ON flashcards;
 DROP POLICY IF EXISTS "Anyone can read facts" ON legal_facts;
 DROP POLICY IF EXISTS "Anyone can read scenarios" ON rpg_scenarios;
@@ -264,6 +321,9 @@ CREATE POLICY "Anyone can view posts"      ON posts FOR SELECT USING (true);
 CREATE POLICY "Users can create posts"     ON posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own posts" ON posts FOR UPDATE USING (auth.uid() = user_id);
 
+-- Likes
+CREATE POLICY "Anyone can view likes" ON likes FOR SELECT USING (true);
+
 -- Public read-only content tables
 CREATE POLICY "Anyone can read flashcards" ON flashcards  FOR SELECT USING (true);
 CREATE POLICY "Anyone can read facts"      ON legal_facts FOR SELECT USING (true);
@@ -279,12 +339,14 @@ GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
 GRANT SELECT, INSERT         ON public.user_badges TO authenticated;
 GRANT SELECT, INSERT         ON public.user_progress TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.posts TO authenticated;
+GRANT SELECT, INSERT         ON public.likes TO authenticated;
 GRANT SELECT ON public.badges TO authenticated;
 GRANT SELECT ON public.flashcards TO authenticated;
 GRANT SELECT ON public.legal_facts TO authenticated;
 GRANT SELECT ON public.rpg_scenarios TO authenticated;
 GRANT SELECT ON public.documents TO authenticated;
 GRANT EXECUTE ON FUNCTION increment_user_xp(uuid, int, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION like_post(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION match_documents(vector, int, float, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION hybrid_search(text, vector, int, float, float) TO authenticated;
 

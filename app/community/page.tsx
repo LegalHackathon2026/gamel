@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getAvatar, awardXP, XP_REWARDS } from '@/lib/gamification';
-import type { Post, LeaderboardEntry } from '@/lib/types';
+import type { Post, Like, LeaderboardEntry } from '@/lib/types';
 
 type Tab = 'feed' | 'leaderboard';
 
@@ -18,13 +18,16 @@ export default function CommunityPage() {
   const [content, setContent] = useState('');
   const [topic, setTopic] = useState('General');
   const [posting, setPosting] = useState(false);
+  const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
+  const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
 
   const TOPICS = ['General', 'Constitutional Law', 'Criminal Law', 'Contract Law', 'Land Law', 'Labour Law', 'Family Law'];
 
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) setUserId(session.user.id);
+      const currentUserId = session?.user.id ?? null;
+      if (currentUserId) setUserId(currentUserId);
 
       const [{ data: postsData }, { data: lbData }] = await Promise.all([
         supabase.from('posts').select('*, users(display_name, avatar_id)').order('created_at', { ascending: false }).limit(20),
@@ -33,6 +36,16 @@ export default function CommunityPage() {
 
       setPosts(postsData || []);
       setLeaderboard(lbData || []);
+
+      if (currentUserId) {
+        const { data: likesData } = await supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', currentUserId);
+
+        setLikedPostIds(new Set((likesData || []).map((like: Pick<Like, 'post_id'>) => like.post_id)));
+      }
+
       setLoading(false);
     };
     init();
@@ -55,8 +68,35 @@ export default function CommunityPage() {
   };
 
   const likePost = async (postId: string) => {
-    await supabase.from('posts').update({ likes: (posts.find(p => p.id === postId)?.likes || 0) + 1 }).eq('id', postId);
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+    if (!userId) return;
+
+    const post = posts.find(p => p.id === postId);
+    if (!post || post.user_id === userId || likedPostIds.has(postId) || likingPostIds.has(postId)) {
+      return;
+    }
+
+    setLikingPostIds(prev => new Set(prev).add(postId));
+
+    const { data: nextLikes, error: likeError } = await supabase.rpc('like_post', {
+      p_post_id: postId,
+    });
+
+    if (likeError) {
+      setLikingPostIds(prev => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
+      return;
+    }
+
+    setLikedPostIds(prev => new Set(prev).add(postId));
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: typeof nextLikes === 'number' ? nextLikes : p.likes + 1 } : p));
+    setLikingPostIds(prev => {
+      const next = new Set(prev);
+      next.delete(postId);
+      return next;
+    });
   };
 
   const timeAgo = (date: string) => {
@@ -130,6 +170,10 @@ export default function CommunityPage() {
             </div>
           ) : posts.map(post => {
             const avatar = getAvatar(post.users?.avatar_id || 'scale');
+            const isOwnPost = post.user_id === userId;
+            const hasLiked = likedPostIds.has(post.id);
+            const isLiking = likingPostIds.has(post.id);
+            const likeDisabled = !userId || isOwnPost || hasLiked || isLiking;
             return (
               <div key={post.id} className="card" style={{ transition: 'box-shadow 0.2s' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)'; }}
@@ -153,12 +197,26 @@ export default function CommunityPage() {
                 <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 8 }}>{post.title}</h3>
                 <p style={{ fontSize: 14, color: 'var(--gray-600)', lineHeight: 1.7, marginBottom: 16 }}>{post.content}</p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => likePost(post.id)} style={{
+                  <button
+                    onClick={() => likePost(post.id)}
+                    disabled={likeDisabled}
+                    title={
+                      !userId
+                        ? 'Sign in to like posts'
+                        : isOwnPost
+                          ? 'You cannot like your own post'
+                          : hasLiked
+                            ? 'You already liked this post'
+                            : 'Like this post'
+                    }
+                    style={{
                     background: 'var(--cream)', border: '1px solid var(--gray-200)',
-                    borderRadius: 20, padding: '4px 14px', cursor: 'pointer',
+                    borderRadius: 20, padding: '4px 14px',
                     fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--navy)',
+                    opacity: likeDisabled ? 0.6 : 1,
+                    cursor: likeDisabled ? 'not-allowed' : 'pointer',
                   }}>
-                    👍 {post.likes}
+                    {isOwnPost ? '🚫' : hasLiked ? '✅' : '👍'} {post.likes}
                   </button>
                 </div>
               </div>
