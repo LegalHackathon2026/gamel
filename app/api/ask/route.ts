@@ -1,141 +1,199 @@
-// app/api/ask/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  buildClarificationReply,
+  buildGuardrailPrompt,
+  buildInsufficientContextReply,
+  evaluateQuestion,
+} from '@/lib/chatGuardrails';
 
-const DEFAULT_PROVIDER = process.env.DEFAULT_AI_PROVIDER || 'gemini';
+type GroundedSource = {
+  id: string;
+  title: string;
+  url: string;
+};
 
-async function getEmbeddingGemini(text: string): Promise<number[]> {
-  const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-  const result = await model.embedContent(text.slice(0, 8000));
-  return result.embedding.values;
+const TRUSTED_NIGERIAN_LAW_SOURCE_PATTERN =
+  /(lawpavilion\.com|lawnigeria\.com|nigerialii\.org|judiciary\.gov\.ng|supremecourt\.gov\.ng|natassembly\.gov\.ng|placng\.org|fmj\.gov\.ng|nigerianlawguru\.com)/i;
+
+function isTrustedNigerianLawUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return TRUSTED_NIGERIAN_LAW_SOURCE_PATTERN.test(hostname);
+  } catch {
+    return false;
+  }
 }
 
-async function callGemini(prompt: string, systemPrompt: string): Promise<string> {
-  const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-    systemInstruction: systemPrompt,
-  });
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+function normalizeGroundedSources(groundingMetadata: any): GroundedSource[] {
+  const chunks = groundingMetadata?.groundingChunks || [];
+
+  return chunks
+    .map((chunk: any, index: number) => {
+      const web = chunk?.web;
+      if (!web?.uri || !web?.title) return null;
+
+      return {
+        id: `web_${index}`,
+        title: web.title,
+        url: web.uri,
+      } satisfies GroundedSource;
+    })
+    .filter((source: GroundedSource | null): source is GroundedSource => source !== null);
 }
 
-async function callClaude(prompt: string, systemPrompt: string): Promise<string> {
-  const Anthropic = (await import('@anthropic-ai/sdk')).default;
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const response = await client.messages.create({
-    model: 'claude-3-5-haiku-20241022',
-    max_tokens: 1500,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: prompt }],
-  });
-  return (response.content[0] as { text: string }).text;
+async function callGeminiWithGoogleSearch(prompt: string, systemPrompt: string): Promise<{
+  answer: string;
+  sources: GroundedSource[];
+}> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+        tools: [
+          {
+            google_search: {},
+          },
+        ],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Google Search grounding failed: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const answer =
+    data?.candidates?.[0]?.content?.parts
+      ?.map((part: { text?: string }) => part.text || '')
+      .join('') || '';
+
+  return {
+    answer,
+    sources: normalizeGroundedSources(data?.candidates?.[0]?.groundingMetadata),
+  };
 }
-
-async function callOpenAI(prompt: string, systemPrompt: string): Promise<string> {
-  const OpenAI = (await import('openai')).default;
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: prompt },
-    ],
-    max_tokens: 1500,
-  });
-  return response.choices[0].message.content || '';
-}
-
-const SYSTEM_PROMPT = `You are Gamell AI, a legal education assistant specializing in Nigerian law.
-
-Your role:
-- Answer questions about Nigerian law clearly, accurately, and in plain language
-- Reference specific Nigerian statutes, court cases, and constitutional provisions
-- Explain legal concepts accessibly - the user may not have a law background
-- Always ground your answer in Nigerian law specifically
-- If context documents are provided, cite them
-- Never fabricate case names, citations, or legal provisions
-- Add a brief note when professional legal advice is recommended
-
-Keep responses clear, structured, and educational.`;
 
 export async function POST(req: NextRequest) {
   const start = Date.now();
 
   try {
-    const { question, provider = DEFAULT_PROVIDER, sessionId } = await req.json();
+    const { question } = await req.json();
 
     if (!question || question.trim().length === 0) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
 
-    // Import supabase server client
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    );
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ error: 'GEMINI_API_KEY is not configured' }, { status: 500 });
+    }
 
-    // Embed the question
-    let queryEmbedding: number[] = [];
-    let results: { id: string; content: string; metadata: Record<string, string>; similarity: number }[] = [];
+    const guardrailDecision = evaluateQuestion(question);
 
-    try {
-      queryEmbedding = await getEmbeddingGemini(question);
-
-      const { data } = await supabase.rpc('hybrid_search', {
-        query_text: question,
-        query_embedding: queryEmbedding,
-        match_count: 5,
+    if (guardrailDecision.kind === 'block') {
+      return NextResponse.json({
+        answer: guardrailDecision.message,
+        sources: [],
+        meta: {
+          provider: 'gemini',
+          retrievedChunks: 0,
+          elapsedMs: Date.now() - start,
+          guardrail: guardrailDecision.reason,
+        },
       });
-      results = data || [];
-    } catch {
-      // If embedding/search fails (e.g. no documents yet), continue without context
-      console.warn('Vector search skipped - no documents or embedding error');
     }
 
-    // Build prompt
-    let prompt = question;
-    if (results.length > 0) {
-      const context = results.map((r, i) => {
-        const meta = r.metadata || {};
-        const source = [meta.case_name, meta.court, meta.year].filter(Boolean).join(' | ');
-        return `[Source ${i + 1}${source ? `: ${source}` : ''}]\n${r.content}`;
-      }).join('\n\n---\n\n');
-
-      prompt = `Answer the question using the Nigerian legal context below.\n\nCONTEXT:\n${context}\n\nQUESTION: ${question}`;
+    if (guardrailDecision.mode === 'clarify_nigeria') {
+      return NextResponse.json({
+        answer: buildClarificationReply(question),
+        sources: [],
+        meta: {
+          provider: 'gemini',
+          retrievedChunks: 0,
+          elapsedMs: Date.now() - start,
+          guardrail: 'clarify_nigeria',
+        },
+      });
     }
 
-    // Generate response
-    let answer = '';
+    const systemPrompt = [
+      buildGuardrailPrompt(),
+      'Use Google Search grounding as your source of authority.',
+      'Rely only on Nigerian legal authorities or reputable Nigerian legal reference sources.',
+      'Prefer Nigerian statutes, Nigerian courts, Nigerian government sources, and reputable Nigerian legal publishers.',
+      'If you cannot find reliable Nigerian legal web sources, say so plainly and do not guess.',
+    ].join('\n');
+
+    const prompt = [
+      `Answer this question strictly from Nigerian law: ${guardrailDecision.normalizedQuestion}`,
+      'Use Google Search grounding if needed.',
+      'Only rely on Nigerian legal sources or reputable Nigerian legal publishers.',
+      'If the answer depends on state law, say so and identify the state-specific issue.',
+    ].join('\n');
+
+    let result: Awaited<ReturnType<typeof callGeminiWithGoogleSearch>>;
     try {
-      if (provider === 'claude') answer = await callClaude(prompt, SYSTEM_PROMPT);
-      else if (provider === 'openai') answer = await callOpenAI(prompt, SYSTEM_PROMPT);
-      else answer = await callGemini(prompt, SYSTEM_PROMPT);
+      result = await callGeminiWithGoogleSearch(prompt, systemPrompt);
     } catch (err) {
-      // Fallback to Gemini
-      if (provider !== 'gemini') {
-        answer = await callGemini(prompt, SYSTEM_PROMPT);
-      } else {
-        throw err;
-      }
+      console.warn('Google grounding unavailable:', err);
+      return NextResponse.json({
+        answer: buildInsufficientContextReply(),
+        sources: [],
+        meta: {
+          provider: 'gemini',
+          retrievedChunks: 0,
+          elapsedMs: Date.now() - start,
+          guardrail: 'google_grounding_unavailable',
+        },
+      });
+    }
+
+    const trustedSources = result.sources.filter((source) => isTrustedNigerianLawUrl(source.url));
+    const hasOnlyTrustedSources = result.sources.length > 0 && trustedSources.length === result.sources.length;
+
+    if (!result.answer || !hasOnlyTrustedSources) {
+      return NextResponse.json({
+        answer: buildInsufficientContextReply(),
+        sources: [],
+        meta: {
+          provider: 'gemini',
+          retrievedChunks: trustedSources.length,
+          elapsedMs: Date.now() - start,
+          guardrail: 'insufficient_nigerian_web_context',
+        },
+      });
     }
 
     return NextResponse.json({
-      answer,
-      sources: results.map(r => ({
-        id: r.id,
-        metadata: r.metadata,
-        similarity: r.similarity,
-        preview: r.content.slice(0, 200) + (r.content.length > 200 ? '...' : ''),
+      answer: result.answer,
+      sources: trustedSources.map((source) => ({
+        id: source.id,
+        metadata: {
+          document_title: source.title,
+          source: source.url,
+          uri: source.url,
+          doc_type: 'web_grounding',
+          jurisdiction: 'Nigeria',
+        },
+        similarity: 0.9,
+        preview: source.title,
       })),
       meta: {
-        provider,
-        retrievedChunks: results.length,
+        provider: 'gemini',
+        retrievedChunks: trustedSources.length,
         elapsedMs: Date.now() - start,
+        guardrail: 'web_grounding',
       },
     });
   } catch (err: unknown) {

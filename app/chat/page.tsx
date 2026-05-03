@@ -14,9 +14,9 @@ interface Message {
 
 const SUGGESTIONS = [
   'What are my rights if I am arrested in Nigeria?',
-  'Can my landlord evict me without notice?',
+  'Under Nigerian law, can my landlord evict me without notice in Lagos?',
   'What does the Nigerian Constitution say about free speech?',
-  'How do I enforce a contract if the other party defaults?',
+  'How do I enforce a contract under Nigerian law if the other party defaults?',
   'What is the difference between the Criminal Code and Penal Code?',
 ];
 
@@ -94,7 +94,7 @@ export default function ChatPage() {
             <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>
               Gamell AI Advisor
             </p>
-            <p style={{ fontSize: 12, color: 'var(--green)' }}>● Online · Backed by Legal Facts</p>
+            <p style={{ fontSize: 12, color: 'var(--green)' }}>● Online · Nigerian law only</p>
           </div>
         </div>
         <div style={{
@@ -115,7 +115,7 @@ export default function ChatPage() {
               Ask me anything about Nigerian law
             </h2>
             <p style={{ color: 'var(--gray-600)', fontSize: 15, lineHeight: 1.7, marginBottom: 32 }}>
-              I search real Nigerian legal documents - case law, statutes, and the Constitution - to give you grounded answers.
+              I use Gemini with trusted Nigerian legal web sources to give you grounded answers.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {SUGGESTIONS.map((s, i) => (
