@@ -61,8 +61,27 @@ export interface Post {
   content: string;
   topic: string | null;
   likes: number;
+  dislikes: number;
+  comments_count: number;
   created_at: string;
   users?: { display_name: string | null; avatar_id: string };
+}
+
+export interface Comment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  users?: { display_name: string | null; avatar_id: string };
+}
+
+export interface Interaction {
+  id: string;
+  post_id: string;
+  user_id: string;
+  interaction_type: 'like' | 'dislike';
+  created_at: string;
 }
 
 export interface LeaderboardEntry {

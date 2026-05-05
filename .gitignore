@@ -7,3 +7,6 @@ build/
 .DS_Store
 data/
 *.pem
+.idea/
+.codex
+tsconfig.tsbuildinfo

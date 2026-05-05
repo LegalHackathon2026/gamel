@@ -20,6 +20,31 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    timestamptz DEFAULT now()
 );
 
+-- Trigger to create profile on signup
+-- This avoids "permission denied" errors when email confirmation is ON
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.users (id, email, display_name)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1))
+  );
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Only create the trigger if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created') THEN
+    CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  END IF;
+END $$;
+
 -- ── Badges ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS badges (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -96,13 +121,32 @@ CREATE TABLE IF NOT EXISTS user_progress (
 
 -- ── Community Posts ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS posts (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        uuid REFERENCES users(id) ON DELETE CASCADE,
+  title          text NOT NULL,
+  content        text NOT NULL,
+  topic          text,
+  likes          int DEFAULT 0,
+  dislikes       int DEFAULT 0,
+  comments_count int DEFAULT 0,
+  created_at     timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS comments (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    uuid REFERENCES users(id) ON DELETE CASCADE,
-  title      text NOT NULL,
+  post_id    uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   content    text NOT NULL,
-  topic      text,
-  likes      int DEFAULT 0,
   created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS post_interactions (
+  id               uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  post_id          uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id          uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  interaction_type text NOT NULL CHECK (interaction_type IN ('like', 'dislike')),
+  created_at       timestamptz DEFAULT now(),
+  UNIQUE(post_id, user_id)
 );
 
 -- ── Conversations (Chat/RAG) ─────────────────────────────────
@@ -190,6 +234,33 @@ BEGIN
 END;
 $$;
 
+-- ── Comment Counting Trigger ───────────────────────────────────
+CREATE OR REPLACE FUNCTION public.handle_comment_changes()
+RETURNS trigger AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE public.posts
+    SET comments_count = comments_count + 1
+    WHERE id = NEW.post_id;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE public.posts
+    SET comments_count = comments_count - 1
+    WHERE id = OLD.post_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Only create the trigger if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_comment_created_or_deleted') THEN
+    CREATE TRIGGER on_comment_created_or_deleted
+      AFTER INSERT OR DELETE ON public.comments
+      FOR EACH ROW EXECUTE FUNCTION public.handle_comment_changes();
+  END IF;
+END $$;
+
 -- ── Atomic XP Update Function ─────────────────────────────────
 -- Runs as the calling user (SECURITY INVOKER) so RLS is respected.
 -- Eliminates the read-then-write race condition in awardXP.
@@ -222,11 +293,63 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION interact_with_post(p_post_id uuid, p_type text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id uuid;
+  v_post_owner_id uuid;
+  v_like_count int;
+  v_dislike_count int;
+BEGIN
+  v_user_id := auth.uid();
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  IF p_type NOT IN ('like', 'dislike') THEN
+    RAISE EXCEPTION 'Invalid interaction type';
+  END IF;
+
+  SELECT user_id
+  INTO v_post_owner_id
+  FROM posts
+  WHERE id = p_post_id;
+
+  IF v_post_owner_id IS NULL THEN
+    RAISE EXCEPTION 'Post not found';
+  END IF;
+
+  IF v_post_owner_id = v_user_id THEN
+    RAISE EXCEPTION 'You cannot interact with your own post';
+  END IF;
+
+  -- Insert or update the interaction
+  INSERT INTO post_interactions (post_id, user_id, interaction_type)
+  VALUES (p_post_id, v_user_id, p_type)
+  ON CONFLICT (post_id, user_id) DO UPDATE 
+  SET interaction_type = EXCLUDED.interaction_type;
+
+  -- Recalculate totals
+  SELECT COUNT(*) INTO v_like_count FROM post_interactions WHERE post_id = p_post_id AND interaction_type = 'like';
+  SELECT COUNT(*) INTO v_dislike_count FROM post_interactions WHERE post_id = p_post_id AND interaction_type = 'dislike';
+
+  -- Update posts table
+  UPDATE posts
+  SET likes = v_like_count, dislikes = v_dislike_count
+  WHERE id = p_post_id;
+
+  RETURN json_build_object('likes', v_like_count, 'dislikes', v_dislike_count);
+END;
+$$;
+
 -- ── Row Level Security ────────────────────────────────────────
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_progress ENABLE ROW LEVEL SECURITY;
-ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_interactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies before recreating to avoid conflicts on re-run
@@ -240,6 +363,11 @@ DROP POLICY IF EXISTS "Users can insert own progress" ON user_progress;
 DROP POLICY IF EXISTS "Anyone can view posts" ON posts;
 DROP POLICY IF EXISTS "Users can create posts" ON posts;
 DROP POLICY IF EXISTS "Users can update own posts" ON posts;
+DROP POLICY IF EXISTS "Anyone can view interactions" ON post_interactions;
+DROP POLICY IF EXISTS "Anyone can view comments" ON comments;
+DROP POLICY IF EXISTS "Users can create comments" ON comments;
+DROP POLICY IF EXISTS "Users can update own comments" ON comments;
+DROP POLICY IF EXISTS "Users can delete own comments" ON comments;
 DROP POLICY IF EXISTS "Anyone can read flashcards" ON flashcards;
 DROP POLICY IF EXISTS "Anyone can read facts" ON legal_facts;
 DROP POLICY IF EXISTS "Anyone can read scenarios" ON rpg_scenarios;
@@ -264,6 +392,9 @@ CREATE POLICY "Anyone can view posts"      ON posts FOR SELECT USING (true);
 CREATE POLICY "Users can create posts"     ON posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own posts" ON posts FOR UPDATE USING (auth.uid() = user_id);
 
+-- Interactions
+CREATE POLICY "Anyone can view interactions" ON post_interactions FOR SELECT USING (true);
+
 -- Public read-only content tables
 CREATE POLICY "Anyone can read flashcards" ON flashcards  FOR SELECT USING (true);
 CREATE POLICY "Anyone can read facts"      ON legal_facts FOR SELECT USING (true);
@@ -279,12 +410,15 @@ GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
 GRANT SELECT, INSERT         ON public.user_badges TO authenticated;
 GRANT SELECT, INSERT         ON public.user_progress TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.posts TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.comments TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.post_interactions TO authenticated;
 GRANT SELECT ON public.badges TO authenticated;
 GRANT SELECT ON public.flashcards TO authenticated;
 GRANT SELECT ON public.legal_facts TO authenticated;
 GRANT SELECT ON public.rpg_scenarios TO authenticated;
 GRANT SELECT ON public.documents TO authenticated;
 GRANT EXECUTE ON FUNCTION increment_user_xp(uuid, int, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION interact_with_post(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION match_documents(vector, int, float, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION hybrid_search(text, vector, int, float, float) TO authenticated;
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getAvatar, awardXP, XP_REWARDS } from '@/lib/gamification';
-import type { Post, LeaderboardEntry } from '@/lib/types';
+import type { Post, Like, LeaderboardEntry, Comment } from '@/lib/types';
 
 type Tab = 'feed' | 'leaderboard';
 
@@ -18,13 +18,23 @@ export default function CommunityPage() {
   const [content, setContent] = useState('');
   const [topic, setTopic] = useState('General');
   const [posting, setPosting] = useState(false);
+  const [userInteractions, setUserInteractions] = useState<Record<string, 'like' | 'dislike'>>({});
+  const [interactingPostIds, setInteractingPostIds] = useState<Set<string>>(new Set());
+
+  // Comments state
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [comments, setComments] = useState<Record<string, Comment[]>>({});
+  const [loadingComments, setLoadingComments] = useState<Set<string>>(new Set());
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   const TOPICS = ['General', 'Constitutional Law', 'Criminal Law', 'Contract Law', 'Land Law', 'Labour Law', 'Family Law'];
 
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) setUserId(session.user.id);
+      const currentUserId = session?.user.id ?? null;
+      if (currentUserId) setUserId(currentUserId);
 
       const [{ data: postsData }, { data: lbData }] = await Promise.all([
         supabase.from('posts').select('*, users(display_name, avatar_id)').order('created_at', { ascending: false }).limit(20),
@@ -33,6 +43,20 @@ export default function CommunityPage() {
 
       setPosts(postsData || []);
       setLeaderboard(lbData || []);
+
+      if (currentUserId) {
+        const { data: interactionsData } = await supabase
+          .from('post_interactions')
+          .select('post_id, interaction_type')
+          .eq('user_id', currentUserId);
+
+        const interactions: Record<string, 'like' | 'dislike'> = {};
+        (interactionsData || []).forEach((item: any) => {
+          interactions[item.post_id] = item.interaction_type as 'like' | 'dislike';
+        });
+        setUserInteractions(interactions);
+      }
+
       setLoading(false);
     };
     init();
@@ -54,9 +78,46 @@ export default function CommunityPage() {
     setPosting(false);
   };
 
-  const likePost = async (postId: string) => {
-    await supabase.from('posts').update({ likes: (posts.find(p => p.id === postId)?.likes || 0) + 1 }).eq('id', postId);
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+  const handleInteraction = async (postId: string, type: 'like' | 'dislike') => {
+    if (!userId) return;
+
+    const post = posts.find(p => p.id === postId);
+    if (!post || post.user_id === userId || userInteractions[postId] === type || interactingPostIds.has(postId)) {
+      return;
+    }
+
+    setInteractingPostIds(prev => new Set(prev).add(postId));
+
+    const { data: nextCounts, error } = await supabase.rpc('interact_with_post', {
+      p_post_id: postId,
+      p_type: type,
+    });
+
+    if (error) {
+      setInteractingPostIds(prev => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
+      return;
+    }
+
+    setUserInteractions(prev => ({ ...prev, [postId]: type }));
+    setPosts(prev => prev.map(p => p.id === postId ? { 
+      ...p, 
+      likes: nextCounts.likes, 
+      dislikes: nextCounts.dislikes 
+    } : p));
+    
+    setInteractingPostIds(prev => {
+      const next = new Set(prev);
+      next.delete(postId);
+      return next;
+    });
+
+    if (type === 'like' && !userInteractions[postId]) {
+      await awardXP(userId, 'post_liked', XP_REWARDS.post_liked || 5);
+    }
   };
 
   const timeAgo = (date: string) => {
@@ -66,6 +127,61 @@ export default function CommunityPage() {
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
     return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  const fetchComments = async (postId: string) => {
+    if (comments[postId] || loadingComments.has(postId)) return;
+
+    setLoadingComments(prev => new Set(prev).add(postId));
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*, users(display_name, avatar_id)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+
+    if (!error && data) {
+      setComments(prev => ({ ...prev, [postId]: data }));
+    }
+    setLoadingComments(prev => {
+      const next = new Set(prev);
+      next.delete(postId);
+      return next;
+    });
+  };
+
+  const toggleComments = (postId: string) => {
+    if (expandedPostId === postId) {
+      setExpandedPostId(null);
+    } else {
+      setExpandedPostId(postId);
+      fetchComments(postId);
+    }
+  };
+
+  const submitComment = async (postId: string) => {
+    if (!newComment.trim() || !userId) return;
+    setSubmittingComment(true);
+
+    const { data, error } = await supabase
+      .from('comments')
+      .insert({
+        post_id: postId,
+        user_id: userId,
+        content: newComment.trim(),
+      })
+      .select('*, users(display_name, avatar_id)')
+      .single();
+
+    if (!error && data) {
+      setComments(prev => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), data],
+      }));
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
+      setNewComment('');
+      await awardXP(userId, 'comment_created', XP_REWARDS.comment_created || 10);
+    }
+    setSubmittingComment(false);
   };
 
   return (
@@ -130,6 +246,11 @@ export default function CommunityPage() {
             </div>
           ) : posts.map(post => {
             const avatar = getAvatar(post.users?.avatar_id || 'scale');
+            const isOwnPost = post.user_id === userId;
+            const currentInteraction = userInteractions[post.id];
+            const isInteracting = interactingPostIds.has(post.id);
+            const interactionDisabled = !userId || isOwnPost || isInteracting;
+
             return (
               <div key={post.id} className="card" style={{ transition: 'box-shadow 0.2s' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)'; }}
@@ -153,14 +274,120 @@ export default function CommunityPage() {
                 <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 8 }}>{post.title}</h3>
                 <p style={{ fontSize: 14, color: 'var(--gray-600)', lineHeight: 1.7, marginBottom: 16 }}>{post.content}</p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => likePost(post.id)} style={{
-                    background: 'var(--cream)', border: '1px solid var(--gray-200)',
-                    borderRadius: 20, padding: '4px 14px', cursor: 'pointer',
-                    fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--navy)',
-                  }}>
-                    👍 {post.likes}
+                  <button
+                    onClick={() => handleInteraction(post.id, 'like')}
+                    disabled={interactionDisabled || currentInteraction === 'like'}
+                    title={
+                      !userId
+                        ? 'Sign in to interact'
+                        : isOwnPost
+                          ? 'You cannot like your own post'
+                          : currentInteraction === 'like'
+                            ? 'You liked this'
+                            : 'Like'
+                    }
+                    style={{
+                      background: currentInteraction === 'like' ? '#5D4037' : 'var(--cream)',
+                      border: '1px solid var(--gray-200)',
+                      borderRadius: 20, padding: '4px 14px',
+                      fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, 
+                      color: currentInteraction === 'like' ? '#FFFFFF' : 'var(--navy)',
+                      opacity: interactionDisabled && currentInteraction !== 'like' ? 0.6 : 1,
+                      cursor: interactionDisabled ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}>
+                    {isOwnPost ? '🚫' : '👍'} {post.likes}
+                  </button>
+
+                  <button
+                    onClick={() => handleInteraction(post.id, 'dislike')}
+                    disabled={interactionDisabled || currentInteraction === 'dislike'}
+                    title={
+                      !userId
+                        ? 'Sign in to interact'
+                        : isOwnPost
+                          ? 'You cannot dislike your own post'
+                          : currentInteraction === 'dislike'
+                            ? 'You disliked this'
+                            : 'Dislike'
+                    }
+                    style={{
+                      background: currentInteraction === 'dislike' ? '#5D4037' : 'var(--cream)',
+                      border: '1px solid var(--gray-200)',
+                      borderRadius: 20, padding: '4px 14px',
+                      fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, 
+                      color: currentInteraction === 'dislike' ? '#FFFFFF' : 'var(--navy)',
+                      opacity: interactionDisabled && currentInteraction !== 'dislike' ? 0.6 : 1,
+                      cursor: interactionDisabled ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}>
+                    {isOwnPost ? '🚫' : '👎'} {post.dislikes || 0}
+                  </button>
+
+                  <button
+                    onClick={() => toggleComments(post.id)}
+                    style={{
+                      background: 'var(--cream)', border: '1px solid var(--gray-200)',
+                      borderRadius: 20, padding: '4px 14px',
+                      fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--navy)',
+                      cursor: 'pointer', transition: 'all 0.2s ease',
+                    }}>
+                    💬 {post.comments_count || 0}
                   </button>
                 </div>
+
+                {/* Expanded Comments Section */}
+                {expandedPostId === post.id && (
+                  <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--gray-100)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
+                      {loadingComments.has(post.id) ? (
+                        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-400)' }}>Loading comments...</p>
+                      ) : (comments[post.id] || []).length === 0 ? (
+                        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-400)' }}>No comments yet. Start the conversation!</p>
+                      ) : (
+                        comments[post.id].map(comment => {
+                          const cAvatar = getAvatar(comment.users?.avatar_id || 'scale');
+                          return (
+                            <div key={comment.id} style={{ display: 'flex', gap: 10 }}>
+                              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--cream-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
+                                {cAvatar.emoji}
+                              </div>
+                              <div style={{ flex: 1, background: 'var(--gray-50)', borderRadius: 12, padding: '10px 14px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{comment.users?.display_name || 'Anonymous'}</span>
+                                  <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>{timeAgo(comment.created_at)}</span>
+                                </div>
+                                <p style={{ fontSize: 13, color: 'var(--gray-700)', lineHeight: 1.5 }}>{comment.content}</p>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {userId ? (
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <textarea
+                          value={newComment}
+                          onChange={e => setNewComment(e.target.value)}
+                          placeholder="Write a reply..."
+                          className="input"
+                          rows={1}
+                          style={{ minHeight: 44, fontSize: 13, padding: '10px 14px' }}
+                        />
+                        <button
+                          onClick={() => submitComment(post.id)}
+                          disabled={submittingComment || !newComment.trim()}
+                          className="btn-primary"
+                          style={{ padding: '0 16px', fontSize: 13, whiteSpace: 'nowrap' }}>
+                          {submittingComment ? '...' : 'Reply'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-400)' }}>Sign in to join the discussion.</p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
