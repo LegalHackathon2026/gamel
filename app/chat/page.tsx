@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabaseClient';
 import { awardXP, XP_REWARDS } from '@/lib/gamification';
 import Link from 'next/link';
@@ -126,7 +127,7 @@ export default function ChatPage() {
                   fontFamily: 'var(--font-body)', transition: 'all 0.2s',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--gold)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-primary)'; }}>
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--gray-200)'; }}>
                   {s}
                 </button>
               ))}
@@ -136,6 +137,7 @@ export default function ChatPage() {
           <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
             {messages.map((m, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+
                 {/* Bubble */}
                 <div style={{
                   maxWidth: '82%',
@@ -143,11 +145,124 @@ export default function ChatPage() {
                   border: m.role === 'user' ? 'none' : '1px solid var(--gray-200)',
                   borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '4px 16px 16px 16px',
                   padding: '14px 18px',
-                  fontSize: 15, lineHeight: 1.75,
-                  color: m.role === 'user' ? 'var(--text-primary)' : 'var(--text-primary)',
-                  whiteSpace: 'pre-wrap',
+                  fontSize: 15,
+                  lineHeight: 1.75,
+                  color: m.role === 'user' ? 'white' : 'var(--text-primary)',
                   boxShadow: 'var(--shadow-sm)',
-                }}>{m.content}</div>
+                }}>
+                  {m.role === 'user' ? (
+                    <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
+                  ) : (
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }: { children?: React.ReactNode }) => (
+                          <p style={{ margin: '0 0 10px 0', lineHeight: 1.75 }}>
+                            {children}
+                          </p>
+                        ),
+                        strong: ({ children }: { children?: React.ReactNode }) => (
+                          <strong style={{ fontWeight: 700, color: 'var(--navy)' }}>
+                            {children}
+                          </strong>
+                        ),
+                        em: ({ children }: { children?: React.ReactNode }) => (
+                          <em style={{ fontStyle: 'italic' }}>{children}</em>
+                        ),
+                        ul: ({ children }: { children?: React.ReactNode }) => (
+                          <ul style={{ margin: '8px 0', paddingLeft: 20, listStyleType: 'disc' }}>
+                            {children}
+                          </ul>
+                        ),
+                        ol: ({ children }: { children?: React.ReactNode }) => (
+                          <ol style={{ margin: '8px 0', paddingLeft: 20, listStyleType: 'decimal' }}>
+                            {children}
+                          </ol>
+                        ),
+                        li: ({ children }: { children?: React.ReactNode }) => (
+                          <li style={{ marginBottom: 4, lineHeight: 1.6 }}>{children}</li>
+                        ),
+                        h1: ({ children }: { children?: React.ReactNode }) => (
+                          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, color: 'var(--navy)', margin: '16px 0 8px 0' }}>
+                            {children}
+                          </h1>
+                        ),
+                        h2: ({ children }: { children?: React.ReactNode }) => (
+                          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--navy)', margin: '14px 0 6px 0' }}>
+                            {children}
+                          </h2>
+                        ),
+                        h3: ({ children }: { children?: React.ReactNode }) => (
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--navy)', margin: '12px 0 6px 0' }}>
+                            {children}
+                          </h3>
+                        ),
+                        h4: ({ children }: { children?: React.ReactNode }) => (
+                          <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: 'var(--navy)', margin: '10px 0 4px 0' }}>
+                            {children}
+                          </h4>
+                        ),
+                        code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+                          const isBlock = className?.includes('language-');
+                          return isBlock ? (
+                            <code style={{
+                              display: 'block',
+                              background: 'var(--cream-dark)',
+                              borderRadius: 8,
+                              padding: '12px 16px',
+                              fontSize: 13,
+                              fontFamily: 'monospace',
+                              overflowX: 'auto',
+                              margin: '8px 0',
+                            }}>
+                              {children}
+                            </code>
+                          ) : (
+                            <code style={{
+                              background: 'var(--cream-dark)',
+                              borderRadius: 4,
+                              padding: '2px 6px',
+                              fontSize: 13,
+                              fontFamily: 'monospace',
+                            }}>
+                              {children}
+                            </code>
+                          );
+                        },
+                        pre: ({ children }) => (
+                          <pre style={{ margin: '8px 0', background: 'transparent' }}>
+                            {children}
+                          </pre>
+                        ),
+                        blockquote: ({ children }) => (
+                          <blockquote style={{
+                            borderLeft: '3px solid var(--gold)',
+                            paddingLeft: 14,
+                            margin: '10px 0',
+                            color: 'var(--gray-600)',
+                            fontStyle: 'italic',
+                          }}>
+                            {children}
+                          </blockquote>
+                        ),
+                        a: ({ href, children }) => (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--navy)', textDecoration: 'underline', fontWeight: 600 }}
+                          >
+                            {children}
+                          </a>
+                        ),
+                        hr: () => (
+                          <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '12px 0' }} />
+                        ),
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                  )}
+                </div>
 
                 {/* Sources */}
                 {m.sources && m.sources.length > 0 && (
@@ -172,14 +287,22 @@ export default function ChatPage() {
                 {/* Meta */}
                 {m.meta && (
                   <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
-                    {m.meta.provider} · {m.meta.retrievedChunks} sources · {m.meta.elapsedMs}ms
+                    {m.meta.retrievedChunks} document sources · {m.meta.elapsedMs}ms
                   </div>
+                  // <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
+                  //   {m.meta.provider} · {m.meta.retrievedChunks} sources · {m.meta.elapsedMs}ms
+                  // </div>
                 )}
               </div>
             ))}
 
             {loading && (
-              <div style={{ display: 'flex', gap: 6, padding: '14px 18px', background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: '4px 16px 16px 16px', width: 'fit-content', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{
+                display: 'flex', gap: 6, padding: '14px 18px',
+                background: 'var(--white)', border: '1px solid var(--gray-200)',
+                borderRadius: '4px 16px 16px 16px', width: 'fit-content',
+                boxShadow: 'var(--shadow-sm)',
+              }}>
                 {[0, 1, 2].map(i => (
                   <div key={i} style={{
                     width: 8, height: 8, borderRadius: '50%', background: 'var(--gold)',
@@ -196,7 +319,7 @@ export default function ChatPage() {
       {/* Input */}
       <div style={{
         flexShrink: 0, padding: '16px 24px',
-        background: 'var(--white)', borderTop: '1px solid var(--text--primary)',
+        background: 'var(--white)', borderTop: '1px solid var(--gray-200)',
       }}>
         <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <textarea
@@ -208,16 +331,20 @@ export default function ChatPage() {
             rows={2}
             style={{
               flex: 1, resize: 'none', padding: '12px 16px',
-              border: '2px solid var(--text--primary)', borderRadius: 14,
+              border: '2px solid var(--gray-200)', borderRadius: 14,
               fontSize: 15, lineHeight: 1.5, fontFamily: 'var(--font-body)',
               color: 'var(--navy)', background: 'var(--cream)',
               transition: 'border-color 0.2s',
             }}
             onFocus={e => { e.currentTarget.style.borderColor = 'var(--gold)'; }}
-            onBlur={e => { e.currentTarget.style.borderColor = 'var(--text--primary)'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = 'var(--gray-200)'; }}
           />
-          <button onClick={() => send()} disabled={loading || !input.trim()} className="btn-navy"
-            style={{ padding: '12px 20px', opacity: loading || !input.trim() ? 0.4 : 1, flexShrink: 0 }}>
+          <button
+            onClick={() => send()}
+            disabled={loading || !input.trim()}
+            className="btn-navy"
+            style={{ padding: '12px 20px', opacity: loading || !input.trim() ? 0.4 : 1, flexShrink: 0 }}
+          >
             {loading ? '...' : '→'}
           </button>
         </div>
