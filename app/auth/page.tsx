@@ -221,27 +221,22 @@ export default function AuthPage() {
     try {
       if (isSignUp) {
         const cleanName = sanitizeDisplayName(displayName);
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              display_name: cleanName || email.split('@')[0].slice(0, 50),
+            }
+          }
+        });
         if (error) throw error;
 
         if (data.user) {
-          // identities array is empty when the email already exists but is unconfirmed —
-          // Supabase silently re-sends the confirmation email in this case.
-          const isExistingUnverified = data.user.identities?.length === 0;
+          // Profile is created via database trigger on auth.users (see schema.sql)
+          // to avoid "permission denied" errors when email confirmation is ON.
 
-          if (!isExistingUnverified) {
-            // New user — create profile row
-            const { error: insertError } = await supabase.from('users').insert({
-              id: data.user.id,
-              email: data.user.email,
-              display_name: cleanName || email.split('@')[0].slice(0, 50),
-              avatar_id: 'scale',
-              xp: 0, level: 1, streak: 0,
-            });
-            if (insertError) console.error('Profile creation failed:', insertError.message);
-          }
-
-          // Either way, show the verification screen
+          // Show the verification screen
           const capturedEmail = email;
           setEmail(''); setPassword(''); setConfirmPassword('');
           setDisplayName(''); setShowPassword(false); setShowConfirmPassword(false);

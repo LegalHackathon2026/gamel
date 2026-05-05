@@ -9,3 +9,4 @@ data/
 *.pem
 .idea/
 .codex
+tsconfig.tsbuildinfo
