@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { awardXP, XP_REWARDS } from '@/lib/gamification';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -251,6 +252,7 @@ export default function ChatPage() {
                     <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
                   ) : (
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
                         p: ({ children }: { children?: React.ReactNode }) => (
                           <p style={{ margin: '0 0 10px 0', lineHeight: 1.75 }}>
@@ -386,9 +388,6 @@ export default function ChatPage() {
                   <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
                     {m.meta.retrievedChunks} document sources · {m.meta.elapsedMs}ms
                   </div>
-                  // <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
-                  //   {m.meta.provider} · {m.meta.retrievedChunks} sources · {m.meta.elapsedMs}ms
-                  // </div>
                 )}
               </div>
             ))}
