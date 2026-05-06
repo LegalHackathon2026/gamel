@@ -240,14 +240,14 @@ export async function POST(req: NextRequest) {
       else if (provider === 'openai') answer = await callOpenAI(finalPrompt, SYSTEM_PROMPT);
       else answer = await callGroq(finalPrompt, SYSTEM_PROMPT); // Forced default
     } catch (err) {
-      console.warn('[Primary AI Failed] Attempting fallback to Gemini 2.0 Flash...', err instanceof Error ? err.message : '');
+      console.warn('[Primary AI Failed] Attempting fallback to Gemini 2.5 Flash...', err instanceof Error ? err.message : '');
       
       try {
-        // Fallback to Gemini 2.0 Flash
+        // Fallback to Gemini 2.5 Flash
         answer = await callGemini(finalPrompt, SYSTEM_PROMPT);
-        console.log('[Fallback Success] Gemini 2.0 Flash responded.');
+        console.log('[Fallback Success] Gemini 2.5 Flash responded.');
       } catch (fallbackErr) {
-        console.error('[Total Failure] Both Groq and Gemini failed:', fallbackErr);
+        console.error('[Total Failure] Both Groq and Gemini 2.5 Flash failed:', fallbackErr);
         throw new Error('AI services are currently unreachable. Please try again in a few seconds.');
       }
     }
