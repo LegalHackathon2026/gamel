@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabaseClient';
 import { awardXP, XP_REWARDS } from '@/lib/gamification';
 import Link from 'next/link';
@@ -9,6 +8,7 @@ import Link from 'next/link';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  created_at?: string;
   sources?: { metadata: Record<string, string>; similarity: number; preview: string }[];
   meta?: { provider: string; retrievedChunks: number; elapsedMs: number };
 }

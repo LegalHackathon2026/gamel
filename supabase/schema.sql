@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS post_interactions (
 -- ── Conversations (Chat/RAG) ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS conversations (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid REFERENCES users(id) ON DELETE CASCADE,
   session_id text NOT NULL,
   role       text NOT NULL CHECK (role IN ('user', 'assistant')),
   content    text NOT NULL,
@@ -160,7 +161,23 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_conversations_session
-  ON conversations(session_id, created_at);
+  ON conversations(session_id, user_id, created_at);
+
+-- Row Level Security
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own conversations" 
+  ON conversations FOR SELECT 
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own conversations" 
+  ON conversations FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own conversations" 
+  ON conversations FOR DELETE 
+  USING (auth.uid() = user_id);
+
 
 -- ── Ingestion Log ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ingestion_log (
