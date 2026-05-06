@@ -160,7 +160,8 @@ CREATE TABLE IF NOT EXISTS conversations (
   created_at timestamptz DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_conversations_session
+DROP INDEX IF EXISTS idx_conversations_session;
+CREATE INDEX idx_conversations_session
   ON conversations(session_id, user_id, created_at);
 
 -- Row Level Security
