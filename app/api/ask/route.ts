@@ -162,6 +162,43 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ history: data });
 }
 
+export async function DELETE(req: NextRequest) {
+  const sessionId = req.nextUrl.searchParams.get('sessionId');
+  const authHeader = req.headers.get('Authorization');
+
+  if (!sessionId) return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  const { createClient } = await import('@supabase/supabase-js');
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false }
+    }
+  );
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Delete only if it belongs to this user
+  const { error } = await supabase
+    .from('conversations')
+    .delete()
+    .eq('session_id', sessionId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('[API DELETE] Supabase error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
+
 export async function POST(req: NextRequest) {
   const start = Date.now();
 

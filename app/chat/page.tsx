@@ -133,8 +133,16 @@ export default function ChatPage() {
     if (!confirm('Are you sure you want to clear this chat history?')) return;
 
     try {
-      // Delete from Supabase
-      await supabase.from('conversations').delete().eq('session_id', sessionId);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      const res = await fetch(`/api/ask?sessionId=${sessionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Failed to clear history on server');
       
       // Generate new session ID
       const newSid = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -143,6 +151,7 @@ export default function ChatPage() {
       setMessages([]);
     } catch (err) {
       console.error('Failed to clear history:', err);
+      alert('Could not clear history. Please try again.');
     }
   };
 
