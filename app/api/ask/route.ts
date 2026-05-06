@@ -213,24 +213,26 @@ export async function POST(req: NextRequest) {
     // Import supabase client
     const { createClient } = await import('@supabase/supabase-js');
     
-    // We use service role for background tasks (embedding/search) but 
-    // we still need to verify the user for storage
-    const supabaseAdmin = createClient(
+    const supabaseUser = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: { headers: { Authorization: authHeader || '' } },
+        auth: { persistSession: false }
+      }
     );
 
-    let userId: string | null = null;
-    if (authHeader?.startsWith('Bearer ')) {
-      const { data: { user } } = await supabaseAdmin.auth.getUser(authHeader.split(' ')[1]);
-      userId = user?.id || null;
+    const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+
+    const userId = user.id;
 
     // 1. Fetch History for Context (before adding current question)
     let historyContext = '';
-    if (sessionId && userId) {
-      const { data: history } = await supabaseAdmin
+    if (sessionId) {
+      const { data: history } = await supabaseUser
         .from('conversations')
         .select('role, content')
         .eq('session_id', sessionId)
@@ -244,8 +246,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Store User Message
-    if (sessionId && userId) {
-      await supabaseAdmin.from('conversations').insert({
+    if (sessionId) {
+      await supabaseUser.from('conversations').insert({
         session_id: sessionId,
         user_id: userId,
         role: 'user',
@@ -257,7 +259,7 @@ export async function POST(req: NextRequest) {
     let results: { id: string; content: string; metadata: Record<string, string>; similarity: number }[] = [];
     try {
       const queryEmbedding = await getEmbeddingGemini(question);
-      const { data } = await supabase.rpc('hybrid_search', {
+      const { data } = await supabaseUser.rpc('hybrid_search', {
         query_text: question,
         query_embedding: queryEmbedding,
         match_count: 5,
@@ -308,8 +310,9 @@ export async function POST(req: NextRequest) {
 
     // 3. Store Assistant Message
     if (sessionId) {
-      await supabase.from('conversations').insert({
+      await supabaseUser.from('conversations').insert({
         session_id: sessionId,
+        user_id: userId,
         role: 'assistant',
         content: answer
       });
