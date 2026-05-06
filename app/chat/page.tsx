@@ -98,6 +98,10 @@ export default function ChatPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
+      if (!token) {
+        throw new Error('Please sign in to ask questions.');
+      }
+
       const res = await fetch('/api/ask', {
         method: 'POST',
         headers: { 

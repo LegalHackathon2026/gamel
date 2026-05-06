@@ -433,6 +433,7 @@ GRANT SELECT, INSERT         ON public.user_progress TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.posts TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.comments TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.post_interactions TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.conversations TO authenticated;
 GRANT SELECT ON public.badges TO authenticated;
 GRANT SELECT ON public.flashcards TO authenticated;
 GRANT SELECT ON public.legal_facts TO authenticated;
