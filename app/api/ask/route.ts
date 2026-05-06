@@ -126,21 +126,32 @@ Formatting:
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('sessionId');
-  console.log(`[API GET] Fetching history for session: ${sessionId}`);
+  const authHeader = req.headers.get('Authorization');
   
   if (!sessionId) return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
 
   const { createClient } = await import('@supabase/supabase-js');
+  // Use ANON key + User Token for RLS safety
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false }
+    }
   );
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data, error } = await supabase
     .from('conversations')
     .select('role, content, created_at')
     .eq('session_id', sessionId)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -148,7 +159,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   
-  console.log(`[API GET] Found ${data?.length || 0} messages`);
   return NextResponse.json({ history: data });
 }
 
@@ -157,44 +167,51 @@ export async function POST(req: NextRequest) {
 
   try {
     const { question, provider = DEFAULT_PROVIDER, sessionId } = await req.json();
-    console.log(`[API POST] Question received. Session: ${sessionId}, Provider: ${provider}`);
+    const authHeader = req.headers.get('Authorization');
 
     if (!question || question.trim().length === 0) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
 
-    // Import supabase server client
+    // Import supabase client
     const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
+    
+    // We use service role for background tasks (embedding/search) but 
+    // we still need to verify the user for storage
+    const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { persistSession: false } }
     );
 
+    let userId: string | null = null;
+    if (authHeader?.startsWith('Bearer ')) {
+      const { data: { user } } = await supabaseAdmin.auth.getUser(authHeader.split(' ')[1]);
+      userId = user?.id || null;
+    }
+
     // 1. Store User Message
-    if (sessionId) {
-      const { error: insError } = await supabase.from('conversations').insert({
+    if (sessionId && userId) {
+      await supabaseAdmin.from('conversations').insert({
         session_id: sessionId,
+        user_id: userId,
         role: 'user',
         content: question
       });
-      if (insError) console.error('[API POST] User message store error:', insError);
     }
 
-    // 2. Fetch History for Context (limit to last 5 messages for token efficiency)
+    // 2. Fetch History for Context
     let historyContext = '';
-    if (sessionId) {
-      const { data: history, error: histError } = await supabase
+    if (sessionId && userId) {
+      const { data: history } = await supabaseAdmin
         .from('conversations')
         .select('role, content')
         .eq('session_id', sessionId)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(6); // Get last 6 to have enough context
-      
-      if (histError) console.error('[API POST] History fetch error:', histError);
+        .limit(6);
       
       if (history && history.length > 0) {
-        // Reverse to get chronological order
         historyContext = history.reverse().map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
       }
     }

@@ -56,7 +56,13 @@ export default function ChatPage() {
 
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`/api/ask?sessionId=${sessionId}`);
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+
+        const res = await fetch(`/api/ask?sessionId=${sessionId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (!res.ok) return;
         
         const data = await res.json();
@@ -90,9 +96,15 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const res = await fetch('/api/ask', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
         body: JSON.stringify({ question: q, sessionId }),
       });
       const data = await res.json();
