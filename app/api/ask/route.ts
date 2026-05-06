@@ -227,17 +227,7 @@ export async function POST(req: NextRequest) {
       userId = user?.id || null;
     }
 
-    // 1. Store User Message
-    if (sessionId && userId) {
-      await supabaseAdmin.from('conversations').insert({
-        session_id: sessionId,
-        user_id: userId,
-        role: 'user',
-        content: question
-      });
-    }
-
-    // 2. Fetch History for Context
+    // 1. Fetch History for Context (before adding current question)
     let historyContext = '';
     if (sessionId && userId) {
       const { data: history } = await supabaseAdmin
@@ -251,6 +241,16 @@ export async function POST(req: NextRequest) {
       if (history && history.length > 0) {
         historyContext = history.reverse().map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
       }
+    }
+
+    // 2. Store User Message
+    if (sessionId && userId) {
+      await supabaseAdmin.from('conversations').insert({
+        session_id: sessionId,
+        user_id: userId,
+        role: 'user',
+        content: question
+      });
     }
 
     // 3. Search for Legal Context
