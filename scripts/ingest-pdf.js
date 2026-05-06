@@ -8,7 +8,9 @@
 
 import fs from "fs";
 import path from "path";
-import pdf from "pdf-parse";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdf = require("pdf-parse");
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 

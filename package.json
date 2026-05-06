@@ -2,6 +2,7 @@
   "name": "gamell",
   "version": "1.0.0",
   "description": "Gamified Nigerian legal learning platform",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -17,11 +18,14 @@
     "@supabase/supabase-js": "^2.105.0",
     "axios": "^1.15.2",
     "cheerio": "^1.2.0",
+    "groq-sdk": "^1.1.2",
     "next": "15.3.9",
     "openai": "^6.34.0",
     "pdf-parse": "^2.4.5",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
