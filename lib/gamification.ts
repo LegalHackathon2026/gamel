@@ -97,8 +97,16 @@ export async function checkAndAwardBadges(userId: string, xp: number, lessons: n
       if (badge.name === 'First Steps' && lessons >= 1) earned = true;
       if (badge.name === 'Legal Eagle' && xp >= 500) earned = true;
       if (badge.name === 'Scholar' && xp >= 2000) earned = true;
-      if (badge.name === 'Flash Champion' && activityCount(userId, 'flashcard_complete') >= 50) earned = true; // Simplified for now
-      if (badge.name === 'Courtroom Ace' && activityCount(userId, 'rpg_scenario') >= 5) earned = true;
+      
+      if (badge.name === 'Flash Champion') {
+        const count = await activityCount(userId, 'flashcard_complete');
+        if (count >= 50) earned = true;
+      }
+      
+      if (badge.name === 'Courtroom Ace') {
+        const count = await activityCount(userId, 'rpg_scenario');
+        if (count >= 5) earned = true;
+      }
 
       if (earned) {
         await supabase.from('user_badges').insert({
