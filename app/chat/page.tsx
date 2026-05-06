@@ -5,8 +5,6 @@ import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabaseClient';
 import { awardXP, XP_REWARDS } from '@/lib/gamification';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 interface Message {
   role: 'user' | 'assistant';
