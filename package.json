@@ -18,7 +18,6 @@
     "@supabase/supabase-js": "^2.105.0",
     "axios": "^1.15.2",
     "cheerio": "^1.2.0",
-    "groq-sdk": "^1.1.2",
     "next": "15.3.9",
     "openai": "^6.34.0",
     "pdf-parse": "^2.4.5",
