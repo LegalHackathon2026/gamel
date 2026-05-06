@@ -167,14 +167,17 @@ CREATE INDEX idx_conversations_session
 -- Row Level Security
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own conversations" ON conversations;
 CREATE POLICY "Users can view own conversations" 
   ON conversations FOR SELECT 
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own conversations" ON conversations;
 CREATE POLICY "Users can insert own conversations" 
   ON conversations FOR INSERT 
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own conversations" ON conversations;
 CREATE POLICY "Users can delete own conversations" 
   ON conversations FOR DELETE 
   USING (auth.uid() = user_id);
