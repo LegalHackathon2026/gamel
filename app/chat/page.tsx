@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { awardXP, XP_REWARDS } from '@/lib/gamification';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   role: 'user' | 'assistant';
