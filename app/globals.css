@@ -21,17 +21,17 @@
   --font-body: "DM Sans", sans-serif;
 
   /* Brand Colors */
-  --color-gold:       #C9A84C;
-  --color-gold-light: #F0D080;
-  --color-gold-dark:  #9A7A2E;
+  --color-gold:       #854d0e; /* Deeper Bronze for contrast */
+  --color-gold-light: #a16207;
+  --color-gold-dark:  #713f12;
   --color-navy:       #0F1C3F;
   --color-navy-mid:   #1A2F5E;
   --color-navy-light: #243B7A;
   --color-cream:      #FAF7F0;
   --color-cream-dark: #F0EBE0;
-  --color-green:      #2DB87A;
-  --color-green-dark: #1A8A57;
-  --color-red:        #E84040;
+  --color-green:      #166534; /* Rich Forest Green */
+  --color-green-dark: #14532d;
+  --color-red:        #991b1b;
 
   /* Spacing extras */
   --spacing-sidebar: 240px;
@@ -301,3 +301,48 @@ html[data-theme="light"] {
 .animate-fade-up  { animation: fadeUp 0.4s ease forwards; }
 .animate-fade-in  { animation: fadeIn 0.3s ease forwards; }
 .animate-bounce   { animation: bounce 1s ease infinite; }
+
+/* ── Markdown Rendering ──────────────────────────────────── */
+.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.markdown-content h1 { font-size: 22px; }
+.markdown-content h2 { font-size: 18px; }
+.markdown-content h3 { font-size: 16px; }
+
+.markdown-content p {
+  margin-bottom: 12px;
+}
+
+.markdown-content ul, .markdown-content ol {
+  margin-bottom: 16px;
+  padding-left: 20px;
+}
+
+.markdown-content li {
+  margin-bottom: 4px;
+}
+
+.markdown-content strong {
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.markdown-content code {
+  background: var(--color-cream-dark);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+/* For dark mode markdown colors */
+@media (prefers-color-scheme: dark) {
+  .markdown-content strong { color: var(--color-gold-light); }
+  .markdown-content code { background: rgba(255,255,255,0.1); color: var(--color-gold-light); }
+}
+html[data-theme="dark"] .markdown-content strong { color: var(--color-gold-light); }
+html[data-theme="dark"] .markdown-content code { background: rgba(255,255,255,0.1); color: var(--color-gold-light); }

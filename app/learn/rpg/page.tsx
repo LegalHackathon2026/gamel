@@ -72,7 +72,6 @@ export default function RPGPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: `Legal RPG scenario: ${selected.situation}\n\nUser Answers: ${userMessage}\n\nReply as a helpful Nigerian legal advisor. Reference specific Nigerian laws and constitutional rights. Keep it conversational but accurate and correct the user whenever the user is wrong`,
-          provider: 'gemini',
         }),
       });
       const data = await res.json();

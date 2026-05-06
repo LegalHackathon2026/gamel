@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabaseClient';
 import { awardXP, XP_REWARDS } from '@/lib/gamification';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  created_at?: string;
   sources?: { metadata: Record<string, string>; similarity: number; preview: string }[];
   meta?: { provider: string; retrievedChunks: number; elapsedMs: number };
 }
@@ -26,9 +28,21 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [sessionId] = useState(() => `session_${Date.now()}`);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Initialize Session ID from LocalStorage or generate new one
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    let sid = localStorage.getItem('gamell_session_id');
+    if (!sid) {
+      sid = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('gamell_session_id', sid);
+    }
+    setSessionId(sid);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -36,22 +50,66 @@ export default function ChatPage() {
     });
   }, []);
 
+  // Fetch history when sessionId is ready
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const fetchHistory = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+
+        const res = await fetch(`/api/ask?sessionId=${sessionId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        if (data.history && data.history.length > 0) {
+          setMessages(data.history.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+            created_at: m.created_at
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch history:', err);
+      }
+    };
+
+    fetchHistory();
+  }, [sessionId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
   const send = async (question?: string) => {
     const q = question || input.trim();
-    if (!q || loading) return;
-    setInput('');
+    if (!q || loading || !sessionId) return;
+    
+    // Clear input immediately for better UX
+    if (!question) setInput('');
+    
     setMessages(prev => [...prev, { role: 'user', content: q }]);
     setLoading(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('Please sign in to ask questions.');
+      }
+
       const res = await fetch('/api/ask', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, provider: 'gemini', sessionId }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ question: q, sessionId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
@@ -71,6 +129,33 @@ export default function ChatPage() {
       }]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!sessionId) return;
+    if (!confirm('Are you sure you want to clear this chat history?')) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      const res = await fetch(`/api/ask?sessionId=${sessionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Failed to clear history on server');
+      
+      // Generate new session ID
+      const newSid = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('gamell_session_id', newSid);
+      setSessionId(newSid);
+      setMessages([]);
+    } catch (err) {
+      console.error('Failed to clear history:', err);
+      alert('Could not clear history. Please try again.');
     }
   };
 
@@ -98,12 +183,25 @@ export default function ChatPage() {
             <p style={{ fontSize: 12, color: 'var(--green)' }}>● Online · Backed by Legal Facts</p>
           </div>
         </div>
-        <div style={{
-          background: '#FFFBF0', border: '1px solid var(--gold)',
-          borderRadius: 20, padding: '4px 12px',
-          fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, color: '#0F1C3F', margin: '0px 50px 0px 0px',
-        }}>
-          +15 XP per question
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginRight: 60 }}>
+          <button 
+            onClick={clearHistory}
+            style={{ 
+              background: 'none', border: '1px solid var(--gray-200)', 
+              borderRadius: 8, padding: '6px 12px', fontSize: 12, 
+              color: 'var(--gray-600)', cursor: 'pointer',
+              fontFamily: 'var(--font-display)', fontWeight: 600
+            }}>
+            🗑️ Clear Chat
+          </button>
+          <div style={{
+            background: '#FFFBF0', border: '1px solid var(--gold)',
+            borderRadius: 20, padding: '4px 12px',
+            fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, color: '#0F1C3F',
+          }}>
+            +15 XP per question
+          </div>
         </div>
       </div>
 
@@ -154,6 +252,7 @@ export default function ChatPage() {
                     <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
                   ) : (
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
                         p: ({ children }: { children?: React.ReactNode }) => (
                           <p style={{ margin: '0 0 10px 0', lineHeight: 1.75 }}>
@@ -289,9 +388,6 @@ export default function ChatPage() {
                   <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
                     {m.meta.retrievedChunks} document sources · {m.meta.elapsedMs}ms
                   </div>
-                  // <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
-                  //   {m.meta.provider} · {m.meta.retrievedChunks} sources · {m.meta.elapsedMs}ms
-                  // </div>
                 )}
               </div>
             ))}
