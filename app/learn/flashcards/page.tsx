@@ -12,6 +12,8 @@ const FALLBACK_CARDS: Flashcard[] = [
   { id: '3', question: 'What makes a contract legally binding in Nigeria?', answer: 'Six elements: (1) Offer, (2) Acceptance, (3) Consideration, (4) Intention to create legal relations, (5) Capacity of parties, (6) Legality of object. All must be present.', topic: 'Contract Law', difficulty: 'beginner' },
 ];
 
+const DIFFICULTY_ORDER = { beginner: 0, intermediate: 1, advanced: 2 };
+
 export default function FlashcardsPage() {
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [index, setIndex] = useState(0);
@@ -21,8 +23,6 @@ export default function FlashcardsPage() {
   const [xpEarned, setXpEarned] = useState(0);
   const [loading, setLoading] = useState(true);
   const [topicFilter, setTopicFilter] = useState('All');
-
-  const DIFFICULTY_ORDER = { beginner: 0, intermediate: 1, advanced: 2 };
 
   // sort by topic first and then difficulty within each topic (e.g. all Constitutional Law beginner → intermediate → advanced, then all Contract Law beginner → intermediate → advanced)
   useEffect(() => {

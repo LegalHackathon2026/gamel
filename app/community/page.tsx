@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getAvatar, awardXP, XP_REWARDS } from '@/lib/gamification';
-import type { Post, Like, LeaderboardEntry, Comment } from '@/lib/types';
+import type { Post, LeaderboardEntry, Comment } from '@/lib/types';
 
 type Tab = 'feed' | 'leaderboard';
 
@@ -51,7 +51,7 @@ export default function CommunityPage() {
           .eq('user_id', currentUserId);
 
         const interactions: Record<string, 'like' | 'dislike'> = {};
-        (interactionsData || []).forEach((item: any) => {
+        (interactionsData || []).forEach((item: { post_id: string; interaction_type: string }) => {
           interactions[item.post_id] = item.interaction_type as 'like' | 'dislike';
         });
         setUserInteractions(interactions);

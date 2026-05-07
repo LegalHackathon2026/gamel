@@ -351,7 +351,7 @@ export default function AuthPage() {
           )}
 
           <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 28 }}>
-            Didn't get it? Check your spam folder. The link expires in 24 hours.
+            Didn&apos;t get it? Check your spam folder. The link expires in 24 hours.
           </p>
 
           <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>

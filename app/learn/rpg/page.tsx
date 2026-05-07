@@ -12,6 +12,8 @@ const FALLBACK_SCENARIOS: RpgScenario[] = [
   { id: '3', title: 'The Unfair Dismissal', description: 'Fired via WhatsApp with no reason.', situation: 'You have worked at a Lagos company for 4 years with a signed contract requiring 1-month notice. You receive a WhatsApp message terminating your employment immediately, no reason given, no severance pay. What are your rights under Nigerian labour law?', difficulty: 'beginner', topic: 'Labour Law', xp_reward: 100 },
 ];
 
+const DIFFICULTY_ORDER = { beginner: 0, intermediate: 1, advanced: 2 };
+
 type Stage = 'selection' | 'scenario' | 'result';
 
 interface Message { role: 'user' | 'assistant'; content: string; }
@@ -26,8 +28,6 @@ export default function RPGPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [xpAwarded, setXpAwarded] = useState(false);
 
-  const DIFFICULTY_ORDER = { beginner: 0, intermediate: 1, advanced: 2 };
-  
   // sort the rpg questions in order of difficulty
   useEffect(() => {
     const init = async () => {

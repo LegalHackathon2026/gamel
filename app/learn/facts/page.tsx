@@ -146,7 +146,7 @@ export default function FactsPage() {
 
   if (loading) return (
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>
-      Loading today's fact...
+      Loading today&apos;s fact...
     </div>
   );
 
@@ -260,7 +260,7 @@ export default function FactsPage() {
         }}>
           <div>
             <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: '#0F1C3F', marginBottom: 2 }}>
-              ✅ You've read today's fact!
+              ✅ You&apos;ve read today&apos;s fact!
             </p>
             <p style={{ fontSize: 13, color: '#0F1C3F' }}>
               Next fact in <strong>{countdown}</strong>

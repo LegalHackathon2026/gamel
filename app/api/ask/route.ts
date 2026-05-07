@@ -11,7 +11,7 @@ async function getEmbeddingGemini(text: string): Promise<number[]> {
     const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
     const result = await model.embedContent(text.slice(0, 8000));
     return result.embedding.values;
-  } catch (e) {
+  } catch {
     // Silently skip search if Gemini is failing (Hackathon stability)
     return [];
   }

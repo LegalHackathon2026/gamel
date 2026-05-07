@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { AVATARS, getAvatar, xpForNextLevel, xpProgressToNextLevel } from '@/lib/gamification';
+import { AVATARS, getAvatar, xpProgressToNextLevel } from '@/lib/gamification';
 import type { User, UserBadge } from '@/lib/types';
 
 export default function ProfilePage() {
@@ -58,7 +58,6 @@ export default function ProfilePage() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Loading profile...</div>;
   if (!user) return null;
 
-  const avatar = getAvatar(user.avatar_id);
   const progress = xpProgressToNextLevel(user.xp);
 
   return (

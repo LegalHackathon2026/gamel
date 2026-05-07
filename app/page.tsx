@@ -229,7 +229,7 @@ export default function LandingPage() {
             Learn what matters to you
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 17, marginBottom: 48 }}>
-            From your constitutional rights to everyday contracts - we've got it covered.
+            From your constitutional rights to everyday contracts - we&apos;ve got it covered.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
             {TOPICS.map((t, i) => (

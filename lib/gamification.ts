@@ -9,6 +9,8 @@ export const XP_REWARDS = {
   chat_question: 15,
   daily_login: 20,
   post_created: 25,
+  post_liked: 5,
+  comment_created: 10,
 };
 
 export function xpToLevel(xp: number): number {
@@ -50,16 +52,14 @@ export async function awardXP(userId: string, activity: string, xpAmount: number
   const isLesson = activity.includes('scenario') || activity.includes('flashcard_complete');
   const newTotalLessons = isLesson ? (user.total_lessons + 1) : user.total_lessons;
 
-  const { data: updatedUser, error: updateError } = await supabase
+  const { error: updateError } = await supabase
     .from('users')
     .update({ 
       xp: newXp, 
       level: newLevel,
       total_lessons: newTotalLessons 
     })
-    .eq('id', userId)
-    .select()
-    .single();
+    .eq('id', userId);
 
   if (updateError) {
     console.error('Error updating user stats:', updateError);
